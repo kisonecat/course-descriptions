@@ -44,6 +44,8 @@ if __name__ == "__main__":
     # Convert markdown to .tex using pandoc
     tex = convert_to_tex(filename).decode()
 
+    tex = tex.replace("C- ","C$-$ ")
+    
     tex = '\maketitle' + "\n\n" + tex
 
     tex = r'\newcommand{\coursenumber}{' + base_name + '}' + tex
