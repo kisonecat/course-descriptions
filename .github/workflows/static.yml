@@ -1,5 +1,5 @@
 # Simple workflow for deploying static content to GitHub Pages
-name: Deploy static content to Pages
+name: Build .pdf files from .md files
 
 on:
   # Runs on pushes targeting the default branch
@@ -40,6 +40,7 @@ jobs:
             xetex
             pgf
             tex-gyre
+            tex-gyre-math
             geometry
             soul
             xcolor
@@ -47,6 +48,8 @@ jobs:
             fancyhdr
             etoolbox
             amsmath
+      - name: Install fonts
+        run: sudo apt-get install -y tex-gyre
       - name: Setup Python
         uses: actions/setup-python@v2
         with:
