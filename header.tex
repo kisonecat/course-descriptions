@@ -10,6 +10,8 @@
 \definecolor{scarlet}{RGB}{196,27,49}
 \usepackage{tikz}
 
+\setlength{\parindent}{0in}
+
 \usepackage{titlesec}
 \newcommand{\boldunderline}[1]{\textbf{\underline{\textbf{#1}}}}
 
@@ -33,11 +35,25 @@
 \fancyfoot[L]{Page \thepage}
 \fancyfoot[C]{\academicyear}
 
+\titleformat{\section}
+{\normalfont}% bold font and underlined
+{}% no label (empty for no numbering)
+{0em}% no space between label and title text
+{\boldunderline}% before-code
+[]% after-code (empty in this case)
+
 \titleformat{\subsection}[runin]% "runin" places the title on the same line as the text
 {\normalfont}% bold font and underlined
 {}% no label (empty for no numbering)
 {0em}% no space between label and title text
 {\boldunderline}% before-code
+[]% after-code (empty in this case)
+
+\titleformat{\subsubsection}[runin]% "runin" places the title on the same line as the text
+{\normalfont\bfseries}% bold font and underlined
+{}% no label (empty for no numbering)
+{0em}% no space between label and title text
+{}% before-code
 []% after-code (empty in this case)
 
 \renewcommand{\maketitle}{
