@@ -45,6 +45,8 @@ jobs:
             xcolor
             titlesec
             fancyhdr
+            etoolbox
+            amsmath
       - name: Setup Python
         uses: actions/setup-python@v2
         with:
