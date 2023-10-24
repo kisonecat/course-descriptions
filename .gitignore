@@ -1,0 +1,7 @@
+*.pdf
+*~
+\#*\#
+
+# AUCTeX auto folder
+/auto/
+
