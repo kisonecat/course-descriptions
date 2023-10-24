@@ -7,6 +7,10 @@ import yaml
 import os
 import tempfile
 import shutil
+import re
+
+def endashify(s):
+    return re.sub(r'H-(\d)', r'H--\1', re.sub(r'(\d)-(\d)', r'\1--\2', s))
 
 def extract_yaml_preamble(filename):
     with open(filename, 'r') as f:
@@ -35,7 +39,7 @@ def convert_to_tex(filename):
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
-        print("Usage: python scriptname.py <filename>")
+        print("Usage: python build.py <filename>")
         sys.exit(1)
 
     filename = sys.argv[1]
@@ -45,6 +49,7 @@ if __name__ == "__main__":
     tex = convert_to_tex(filename).decode()
 
     tex = tex.replace("C- ","C$-$ ")
+    tex = endashify(tex)
     
     tex = '\maketitle' + "\n\n" + tex
 
