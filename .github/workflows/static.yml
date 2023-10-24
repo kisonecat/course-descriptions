@@ -36,8 +36,8 @@ jobs:
         with:
           packages: >-
             scheme-basic
-            xelatex
-            tikz
+            texlive-xetex
+            pgf
       - name: Setup Python
         uses: actions/setup-python@v2
         with:
