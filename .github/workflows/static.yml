@@ -36,6 +36,7 @@ jobs:
         with:
           packages: >-
             scheme-basic
+            fontspec
             xetex
             pgf
       - name: Setup Python
