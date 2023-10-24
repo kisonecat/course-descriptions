@@ -40,6 +40,11 @@ jobs:
             xetex
             pgf
             tex-gyre
+            geometry
+            soul
+            xcolor
+            titlesec
+            fancyhdr
       - name: Setup Python
         uses: actions/setup-python@v2
         with:
