@@ -39,7 +39,7 @@ jobs:
             fontspec
             xetex
             pgf
-            tex-gyre-termes
+            tex-gyre
       - name: Setup Python
         uses: actions/setup-python@v2
         with:
