@@ -32,7 +32,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
       - name: Setup TeXLive
-        uses: dante-ev/latex-action@2.0.0
+        uses: teatimeguest/setup-texlive-action@v3
       - name: Setup Python
         uses: actions/setup-python@v2
         with:
