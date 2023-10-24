@@ -1,5 +1,5 @@
 # Find all .md files in the current directory
-MD_FILES := $(wildcard *.md)
+MD_FILES := $(filter-out README.md,$(wildcard *.md))
 # Convert the list of .md files to .pdf files
 PDF_FILES := $(patsubst %.md,%.pdf,$(MD_FILES))
 
