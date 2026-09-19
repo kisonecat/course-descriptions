@@ -39,6 +39,8 @@
 \geometry{margin=1in}
 \usepackage{fontspec}
 \setmainfont{TeX Gyre Termes}
+%% A few sheets name the vector space R^n.
+\usepackage{amssymb}
 \usepackage{hyperref}
 %% Set URLs in the body font rather than typewriter: they are long enough in
 %% these sheets that the wider font costs a line.  Allow them to break at
@@ -294,22 +296,80 @@
   {\osu@subheading{Follow-up Courses}\ignorespaces}
   {\par}
 
+%%% ------------------------------------------------------------------
+%%% Topics lists
+%%% ------------------------------------------------------------------
+%% Topic lists are mostly "1.4  Exponents and the Order of Operations": a
+%% section number and a title.  Setting the number in a box of its own keeps
+%% the titles aligned and lets a long one wrap underneath itself.
+\newlength{\topicindent}
+\setlength{\topicindent}{1.5em}
+\newlength{\topicnumwidth}
+\setlength{\topicnumwidth}{3.4em}
+\newlength{\osu@topicw}
+
+%% \topic{1.4}{Exponents and the Order of Operations}
+\newcommand{\topic}[2]{%
+  \par\noindent
+  \hangindent\dimexpr\topicindent+\topicnumwidth\relax
+  \hangafter=1
+  \hspace*{\topicindent}%
+  \settowidth{\osu@topicw}{#2}%
+  \settowidth{\osu@topicw}{#1}%
+  \ifdim\osu@topicw<\topicnumwidth
+    \makebox[\topicnumwidth][l]{#1}%
+  \else
+    #1\hspace{0.6em}%
+  \fi
+  #2\par}
+
+%% A heading part way down a list: "CHAPTER 12. Vectors and Vector-Valued
+%% Functions".  Sits at the margin so the entries below are inset under it.
+\newcommand{\topicgroup}[1]{%
+  \par\addvspace{0.6\baselineskip}\noindent\textbf{#1}\par\nobreak\smallskip}
+
+%% A break in the sequence rather than a topic: "Midterm 1", "Final".  Set
+%% apart and in small capitals, so the sheets agree with each other however
+%% each one happened to write it.
+\newcommand{\topicbreak}[1]{%
+  \par\addvspace{0.5\baselineskip}%
+  {\centering\small\textsc{\MakeLowercase{#1}}\par}%
+  \addvspace{0.5\baselineskip}}
+
+%% A line under a heading that carries no section number of its own.
+\newcommand{\topicsub}[1]{%
+  \par\noindent
+  \hangindent\dimexpr\topicindent+\topicnumwidth\relax
+  \hangafter=1
+  \hspace*{\dimexpr\topicindent+\topicnumwidth\relax}#1\par}
+
 %% The usual case: a numbered list of topics.  The optional argument carries a
 %% qualifier, e.g. \begin{TopicsList}[ (Chapters from Judson's book)].
+\newcounter{osu@topicno}
 \newenvironment{TopicsList}[1][]
   {\osu@used{Topics}\osu@heading{Topics List#1}%
-   \begin{enumerate}}  % loose, matching the original sheets
-  {\end{enumerate}}
-
-%% Inside TopicsOutline, an indented sub-item: a section listed under a
-%% chapter heading.  Each outline line is its own paragraph, which in this
-%% class sets tightly, so a long chapter-by-chapter list stays compact.
-\newcommand{\topicsub}[1]{\hspace*{2em}#1}
+   \frenchspacing
+   \setcounter{osu@topicno}{0}%
+   \begin{list}{\arabic{osu@topicno}.}%
+     {\usecounter{osu@topicno}%
+      \setlength{\leftmargin}{\dimexpr\topicindent+\topicnumwidth\relax}%
+      \setlength{\labelwidth}{\topicnumwidth}%
+      \setlength{\labelsep}{0.6em}%
+      \setlength{\itemindent}{0pt}%
+      \setlength{\listparindent}{0pt}%
+      \setlength{\topsep}{0.4\baselineskip}%
+      \setlength{\partopsep}{0pt}%
+      \setlength{\parsep}{0pt}%
+      \setlength{\itemsep}{0.25\baselineskip}%
+      \renewcommand{\makelabel}[1]{##1\hfil}}}
+  {\end{list}}
 
 %% For topic lists that are not a single flat enumeration -- chapter headings
 %% interleaved with sections, numbering that restarts, and so on.
 \newenvironment{TopicsOutline}[1][]
   {\osu@used{Topics}\osu@heading{Topics List#1}%
+   %% "12.1." and "CHAPTER 12." end in a period that is not a full stop.
+   \frenchspacing
    %% A run-in heading would swallow the first line of a structured outline,
    %% so end the heading's line; TopicsList gets this for free from its list.
    \mbox{}\par\nobreak\ignorespaces}

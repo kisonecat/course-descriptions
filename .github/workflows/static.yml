@@ -52,6 +52,7 @@ jobs:
             fancyhdr
             etoolbox
             amsmath
+            amsfonts
             hyperref
             url
             infwarerr

@@ -24,6 +24,7 @@ import re
 import html
 import subprocess
 import sys
+import unicodedata
 import time
 import urllib.error
 import urllib.parse
@@ -279,6 +280,69 @@ ESCAPES = {"\\": r"\textbackslash{}", "{": r"\{", "}": r"\}", "$": r"\$",
 ESCAPE_TABLE = str.maketrans({**LIGATURES, **ESCAPES})
 
 
+# The published sheets carry characters TeX Gyre Termes has no glyph for, and
+# XeLaTeX drops those silently: mathematical italic letters, blackboard bold,
+# and private-use codepoints left behind by the Symbol font.  Convert them to
+# something LaTeX can actually set.
+SYMBOL_FONT = {"\uf0b7": "\u2022", "\uf02b": "+", "\uf02d": "-",
+               "\uf03d": "=", "\uf0a3": "<=", "\uf0b3": ">="}
+MATH_LETTER = re.compile(r"[\U0001D400-\U0001D7FF\u210E]")
+# A run of maths: italic letters, the digits and operators between them.
+MATH_RUN = re.compile(
+    r"[\U0001D400-\U0001D7FF\u210E]"
+    r"(?:[\U0001D400-\U0001D7FF\u210E0-9+\-=^ ]*"
+    r"[\U0001D400-\U0001D7FF\u210E0-9])?")
+# "R n" for R-to-the-n.  In 2174 a zero-height "P" trails each of these: it is
+# invisible in the published sheet and has no business in ours.
+BLACKBOARD_N = re.compile(r"\u211D\s*([a-z])\s*P?\b")
+MATH_HOLD = "\x00M%d\x00"
+
+
+def _as_math(run):
+    """'ax 2 + bx + c' written in maths italic -> 'ax^{2} + bx + c'."""
+    out, prev_letter = [], False
+    for ch in run:
+        if ch == "\u211D":
+            out.append(r"\mathbb{R}")
+            prev_letter = True
+        elif MATH_LETTER.match(ch):
+            out.append(unicodedata.normalize("NFKC", ch))
+            prev_letter = True
+        elif ch.isdigit():
+            # A digit straight after a variable was a superscript in the
+            # source; the sheets only use this for quadratics.
+            if prev_letter:
+                if out and out[-1] == " ":
+                    out.pop()
+                out.append("^{%s}" % ch)
+            else:
+                out.append(ch)
+            prev_letter = False
+        elif ch == " ":
+            if out and out[-1] != " ":
+                out.append(" ")
+        else:
+            out.append(ch)
+            prev_letter = False
+    return "".join(out).strip()
+
+
+def unicode_math(s):
+    """Return (text with maths held aside, the held fragments)."""
+    for bad, good in SYMBOL_FONT.items():
+        s = s.replace(bad, good)
+    held = []
+
+    def hold(fragment):
+        held.append(fragment)
+        return MATH_HOLD % (len(held) - 1)
+
+    s = BLACKBOARD_N.sub(lambda m: hold(r"\mathbb{R}^{%s}" % m.group(1)), s)
+    s = s.replace("\u211D", hold(r"\mathbb{R}") if "\u211D" in s else "\u211D")
+    s = MATH_RUN.sub(lambda m: hold(_as_math(m.group(0))), s)
+    return s, held
+
+
 def endashify(s):
     """Number ranges take en-dashes, as in the rest of this repository."""
     s = re.sub(r"(\d[0-9A-Za-z.]*)\s*-\s*(\d)", r"\1--\2", s)
@@ -292,9 +356,12 @@ ISBN_RE = re.compile(r"\b(97[89])[-\s]?((?:\d[-\s]?){9}\d)\b")
 
 def tex(s):
     s = ISBN_RE.sub(lambda m: m.group(1) + re.sub(r"[-\s]", "", m.group(2)), s)
+    s, held = unicode_math(s)
     s = s.translate(ESCAPE_TABLE)
     s = endashify(s)
     s = s.replace("C- ", "C$-$ ").replace("B- ", "B$-$ ")
+    for i, fragment in enumerate(held):
+        s = s.replace(MATH_HOLD % i, "$%s$" % fragment)
     return s
 
 
@@ -328,6 +395,19 @@ def paragraphs(lines):
 
 
 NUMBERED_RE = re.compile(r"^\s*(\d+)[.)]\s+(.*)$")
+
+# "1.4  Exponents and the Order of Operations", "App.1 Addition of Fractions",
+# "12.1. Something".  A bare "1." is left alone: that is a flat list's number.
+ENTRY_RE = re.compile(
+    r"^((?:App\.\s*\d+|Appendix\s*[A-Z0-9]+|\d+\.\d+(?:\.\d+)*)\.?)\s+(\S.*)$")
+
+# A heading part way down the list.
+GROUP_RE = re.compile(r"^(CHAPTER|Chapter|PART|Part|UNIT|Unit)\b[\s.:]*[0-9IVX]*\b")
+
+# A break in the sequence rather than a topic.
+BREAK_RE = re.compile(
+    r"^(?:midterm|mid-term|final(?:\s+exam(?:ination)?)?|exam(?:ination)?|quiz)"
+    r"(?:\s*(?:[0-9]+|[IVX]+))?\s*\.?$", re.IGNORECASE)
 WEEK_RE = re.compile(r"^\s*Week\s+(\d+)[.:]?\s*(.*)$", re.IGNORECASE)
 FINALS_RE = re.compile(r"^\s*Finals?\s*week[.:]?\s*(.*)$", re.IGNORECASE)
 
@@ -366,25 +446,58 @@ def render_topics(lines, qualifier=""):
             body = "\n".join(f"\\item {tex(i)}" for i in items)
             return f"\\begin{{TopicsList}}{opt}\n{body}\n\\end{{TopicsList}}"
 
-    # Otherwise keep the outline's shape: one line per line, sub-items indented.
+    # Otherwise keep the outline's shape, classifying each line so the class
+    # can align section numbers and set the breaks apart.
     indents = sorted({len(l) - len(l.lstrip()) for l in kept})
     base = indents[0]
     sub = indents[1] if len(indents) > 1 else base
     body = []
     for line in kept:
         indent = len(line) - len(line.lstrip())
-        text = tex(line.strip())
-        if indent > sub and body:
+        stripped = line.strip()
+        text = tex(stripped)
+
+        if indent > sub and body and not _is_heading(body[-1]):
             # Deeper than the sub-level: a wrapped continuation of the line
-            # above, not an item of its own.
-            body[-1] = join_wrapped([body[-1][:-1], text]) + "}" \
-                if body[-1].startswith("\\topicsub{") else join_wrapped([body[-1], text])
-        elif indent > base:
+            # above, not an item of its own.  A heading never swallows what
+            # follows it, though -- in some sheets the lines under a heading
+            # are simply indented further than it is.
+            body[-1] = _continue_entry(body[-1], text)
+            continue
+
+        if BREAK_RE.match(stripped):
+            body.append(f"\\topicbreak{{{text}}}")
+            continue
+
+        m = GROUP_RE.match(stripped)
+        if m:
+            body.append(f"\\topicgroup{{{text}}}")
+            continue
+
+        m = ENTRY_RE.match(stripped)
+        if m:
+            number, title = tex(m.group(1)), tex(m.group(2).strip())
+            body.append(f"\\topic{{{number}}}{{{title}}}")
+            continue
+
+        if indent > base:
             body.append(f"\\topicsub{{{text}}}")
         else:
             body.append(text)
-    return "\\begin{TopicsOutline}" + opt + "\n" + "\n\n".join(body) \
+    return "\\begin{TopicsOutline}" + opt + "\n" + "\n".join(body) \
         + "\n\\end{TopicsOutline}"
+
+
+def _is_heading(entry):
+    return entry.startswith("\\topicgroup{") or entry.startswith("\\topicbreak{")
+
+
+def _continue_entry(entry, text):
+    """Fold a wrapped continuation into whatever entry it belongs to."""
+    for command in ("\\topic", "\\topicsub", "\\topicgroup", "\\topicbreak"):
+        if entry.startswith(command + "{") and entry.endswith("}"):
+            return join_wrapped([entry[:-1], text]) + "}"
+    return join_wrapped([entry, text])
 
 
 def render_schedule(lines):
@@ -451,8 +564,18 @@ def convert_one(pdf_path):
         if rendered:
             # The catalog fallback text stays plain: it is escaped later, and
             # the university's own wording carries no emphasis.
-            blocks[env] = restyle(rendered, phrases) \
-                if env != "SequencingChart" else rendered
+            if env == "SequencingChart":
+                blocks[env] = rendered
+            else:
+                styled = restyle(rendered, phrases)
+                # \topicbreak sets its own text apart; the source italics it
+                # carried would only double up on that.
+                styled = re.sub(
+                    r"\\topicbreak\{([^{}]*(?:\\emph\{[^{}]*\}[^{}]*)*)\}",
+                    lambda mm: "\\topicbreak{"
+                               + re.sub(r"\\emph\{([^{}]*)\}", r"\1", mm.group(1))
+                               + "}", styled)
+                blocks[env] = styled
     meta["catalog"] = catalog
     return blocks, meta, notes
 
