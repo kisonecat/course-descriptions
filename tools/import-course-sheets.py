@@ -21,6 +21,7 @@ import argparse
 import json
 import os
 import re
+import html
 import subprocess
 import sys
 import time
@@ -248,15 +249,19 @@ def split_sections(body):
         m = HEADING_RE.match(line)
         if m:
             label, tail = m.group(1).strip(), m.group(2).strip()
-            if tail and not heading_tail_is_furniture(tail):
-                m = None        # real text after the colon: not a heading
-        if m:
-            if label.lower().rstrip(":") in SECTION_MAP:
+            known = label.lower().rstrip(":") in SECTION_MAP
+            furniture = not tail or heading_tail_is_furniture(tail)
+            if known:
                 if current is not None:
                     sections.append((current, buf))
-                current, buf = label, []
+                current = label
+                # A few sheets run the heading and its first sentence together
+                # ("Purpose: The purpose of the course is ..."); keep that
+                # sentence rather than leaving it in the section above.
+                buf = [] if furniture else [tail]
                 continue
-            if re.match(r"^[A-Z][a-z]", label) and len(label.split()) <= 5:
+            if furniture and re.match(r"^[A-Z][a-z]", label) \
+                    and len(label.split()) <= 5:
                 unknown.append(label)
         buf.append(line)
     if current is not None:
@@ -409,6 +414,7 @@ def convert_one(pdf_path):
     notes = []
     body, header = strip_furniture(pdf_lines(pdf_path))
     meta = parse_header(header)
+    phrases = italic_phrases(pdf_path)
     blocks, catalog = {}, {}
     CATALOG_SLOT = {"catalog description": "description", "description": "description",
                     "prerequisite": "prereq", "prerequisites": "prereq",
@@ -443,9 +449,153 @@ def convert_one(pdf_path):
         else:
             rendered = render_prose(env, lines)
         if rendered:
-            blocks[env] = rendered
+            # The catalog fallback text stays plain: it is escaped later, and
+            # the university's own wording carries no emphasis.
+            blocks[env] = restyle(rendered, phrases) \
+                if env != "SequencingChart" else rendered
     meta["catalog"] = catalog
     return blocks, meta, notes
+
+
+# ------------------------------------------------- recovering typography
+#
+# pdftotext discards styling, but the published sheets rely on it: book titles
+# are italic and edition ordinals are superscript.  Rather than re-reading the
+# sheets through a different extractor, we read the styling separately and lay
+# it back over the text we already have.
+
+TEXT_EL = re.compile(
+    r'<text top="(-?\d+)" left="(-?\d+)" width="(-?\d+)" height="(\d+)"'
+    r' font="(\d+)">(.*?)</text>', re.S)
+STYLE_TAG = re.compile(r"<(/?)([bi])>")
+
+
+def _styled_runs(path):
+    """[(text, italic)] for every run in the sheet, in reading order."""
+    xml = subprocess.run(["pdftohtml", "-xml", "-i", "-stdout", path],
+                         capture_output=True, check=True).stdout
+    xml = xml.decode("utf-8", errors="replace")
+    runs = []
+    for chunk in xml.split("<page")[1:]:
+        items = []
+        for m in TEXT_EL.finditer(chunk):
+            top, left, _w, height, _f, inner = m.groups()
+            items.append((int(top), int(left), int(height), inner))
+        items.sort(key=lambda it: (it[0], it[1]))
+        # Group into lines first: a superscript sits a few pixels higher than
+        # the text it belongs to, and sorting on top alone would pull it out
+        # in front of the phrase it is part of.
+        rows = []
+        for top, left, height, inner in items:
+            for row in rows:
+                overlap = min(row["bot"], top + height) - max(row["top"], top)
+                if overlap > 0.5 * min(height, row["bot"] - row["top"]):
+                    row["top"] = min(row["top"], top)
+                    row["bot"] = max(row["bot"], top + height)
+                    row["parts"].append((left, inner))
+                    break
+            else:
+                rows.append({"top": top, "bot": top + height,
+                             "parts": [(left, inner)]})
+        ordered = []
+        for row in rows:
+            row["parts"].sort(key=lambda part: part[0])
+            ordered.extend(inner for _left, inner in row["parts"])
+        for inner in ordered:
+            italic, buf, pos = False, "", 0
+            for m in STYLE_TAG.finditer(inner):
+                buf += inner[pos:m.start()]
+                pos = m.end()
+                if buf:
+                    runs.append((html.unescape(buf), italic))
+                    buf = ""
+                if m.group(2) == "i":
+                    italic = not m.group(1)
+            buf += inner[pos:]
+            if buf:
+                runs.append((html.unescape(buf), italic))
+    return runs
+
+
+def italic_phrases(path):
+    """The italicized phrases of a sheet, longest first.
+
+    Consecutive italic runs are joined, so a book title broken across two
+    lines comes back as the one phrase it is.
+    """
+    phrases, current = [], []
+    for text, italic in _styled_runs(path):
+        if not text.strip():
+            continue
+        if italic:
+            if current and current[-1].endswith("-"):
+                current[-1] = current[-1] + text.strip()
+            else:
+                current.append(text.strip())
+        elif current:
+            phrases.append(" ".join(current))
+            current = []
+    if current:
+        phrases.append(" ".join(current))
+    seen, out = set(), []
+    for p in sorted(phrases, key=len, reverse=True):
+        if len(p) > 3 and p not in seen:
+            seen.add(p)
+            out.append(p)
+    return out
+
+
+# "8th edition", "2nd OSU custom edition" -- the ordinal was superscript in
+# every published sheet that uses one, and the sheets converted from Markdown
+# already write it that way.
+ORDINAL_RE = re.compile(
+    r"(?<=\d)(st|nd|rd|th)(?=\s+(?:[A-Za-z.]+\s+){0,3}(?:edition|ed\b))",
+    re.IGNORECASE)
+
+MIN_PHRASE = 12
+
+
+# Whitespace holding at most one newline: a phrase may wrap across a line,
+# but never across a blank line.  \emph is not \long, so an emphasis
+# containing a \par is a hard LaTeX error.
+GAP = r"(?:[^\S\n]*\n[^\S\n]*|[^\S\n]+)"
+
+
+def _loose(needle):
+    """Match a phrase however its spaces fell: these sheets are justified, so
+    the same title can be single- or double-spaced."""
+    return re.compile(GAP.join(re.escape(w) for w in needle.split()))
+
+
+def restyle(block, phrases):
+    """Put the italics and superscripts back into one rendered section."""
+    if not block:
+        return block
+    block = ORDINAL_RE.sub(lambda m: "\\textsuperscript{%s}" % m.group(1), block)
+    for phrase in phrases:
+        # Trailing punctuation belongs outside the emphasis.
+        words = tex(phrase.strip().rstrip(",;:. ")).split()
+        at = 0
+        while words:
+            trial, hit = list(words), None
+            # A title may be interrupted by a superscript or split over a
+            # paragraph break, so fall back to the longest leading run that
+            # still appears; the remainder is then emphasized in its turn.
+            while trial and (len(trial) == len(words)
+                             or len(" ".join(trial)) >= MIN_PHRASE):
+                m = _loose(" ".join(trial)).search(block, at)
+                if m and block[max(0, m.start() - 6):m.start()] != "\\emph{":
+                    hit = (m, len(trial))
+                    break
+                trial.pop()
+            if hit is None:
+                break
+            m, taken = hit
+            block = block[:m.start()] + "\\emph{" + m.group(0) + "}" + block[m.end():]
+            at = m.end() + len("\\emph{}")
+            words = words[taken:]
+    return block
+
 
 
 # ---------------------------------------------------------------- driving
