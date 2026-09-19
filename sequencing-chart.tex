@@ -1,0 +1,45 @@
+%% The course sequencing chart for the 1000-level algebra and precalculus
+%% courses, drawn in TikZ.  Included by \SequencingChart, which osucourse.cls
+%% defines; it is a fragment, not a standalone document.
+%%
+%% To preview it on its own, put it in a standalone document:
+%%   \documentclass[tikz,border=8pt]{standalone}
+%%   \usetikzlibrary{arrows.meta}
+%%   \begin{document}\input{sequencing-chart}\end{document}
+\begin{tikzpicture}[
+  x=1cm,y=1cm,
+  course/.style={draw=black,line width=.65pt,rectangle,
+    minimum width=10mm,minimum height=5.8mm,inner sep=2pt,
+    font=\sffamily\fontsize{10}{12}\selectfont},
+  sequence/.style={-{Triangle[length=1.5mm,width=1.35mm]},line width=.65pt}
+]
+\node[course] (1050) at (0,0) {1050};
+\node[course] (1075) at (1.9,0) {1075};
+\node[course] (1116) at (1.9,3) {1116};
+\node[course] (1125) at (3.8,3) {1125};
+\node[course] (1130) at (3.8,1.5) {1130};
+\node[course] (1148) at (3.8,0) {1148};
+\node[course] (1131) at (5.7,1.5) {1131};
+\node[course] (1149) at (5.7,0) {1149};
+\node[course] (1150) at (5.7,-1.5) {1150};
+\node[course] (1151) at (8.2,0) {1151};
+\node[course] (1156) at (8.2,-1.5) {1156};
+\node[course] (1165) at (8.2,-3) {1165};
+% Entry and branching from Math 1075.
+\draw[sequence] (1050.east) -- (1075.west);
+\draw[sequence] (1075.north) -- (1116.south);
+\draw[sequence] ([xshift=2mm]1075.north) -- (1125.south west);
+\draw[sequence] (1075.north east) -- (1130.south west);
+\draw[sequence] (1075.east) -- (1148.west);
+% Algebra pathways.
+\draw[sequence] (1130.east) -- (1131.west);
+\draw[sequence] (1148.north east) -- (1131.south west);
+\draw[sequence] (1148.east) -- (1149.west);
+% The original chart has no incoming arrow to Math 1150.
+\draw[sequence] (1149.east) -- (1151.west);
+\draw[sequence] ([yshift=-1mm]1149.east) -- (1156.north west);
+\draw[sequence] (1149.south east) -- (1165.north west);
+\draw[sequence] (1150.north east) -- (1151.south west);
+\draw[sequence] (1150.east) -- (1156.west);
+\draw[sequence] (1150.south east) -- (1165.west);
+\end{tikzpicture}

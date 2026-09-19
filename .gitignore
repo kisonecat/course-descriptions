@@ -5,3 +5,17 @@
 # AUCTeX auto folder
 /auto/
 
+# latexmk and xelatex build artifacts
+*.aux
+*.log
+*.out
+*.fls
+*.fdb_latexmk
+*.xdv
+coursedata.check.tex
+
+# Downloaded copies of the published sheets, used only by the one-shot import
+tools/.course-sheet-cache/
+
+# Python bytecode from the helper scripts
+__pycache__/

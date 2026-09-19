@@ -1,14 +1,65 @@
-\documentclass[12pt]{article}
+%% osucourse.cls -- course description sheets for the OSU Department of
+%% Mathematics.
+%%
+%% A course sheet looks like this:
+%%
+%%     \documentclass{osucourse}
+%%     \course{4551}
+%%     \begin{document}
+%%     \CatalogDescription
+%%     \PrerequisitesAndExclusions
+%%     \begin{Text} ... \end{Text}
+%%     \begin{TopicsList} \item ... \end{TopicsList}
+%%     \begin{SuggestedSchedule} \week{1}{...} \end{SuggestedSchedule}
+%%     \end{document}
+%%
+%% The title, credit hours, semesters, catalog description, prerequisites and
+%% exclusions are all filled in automatically from coursedata.tex, which is
+%% generated from the university's own data.  Everything else -- the textbook,
+%% the purpose, the topics, the schedule -- is yours to write.
+%%
+%% To disagree with the official data for one course, override the field in
+%% that course's preamble:
+%%
+%%     \SetCourseField{semesters}{Spring (odd years)}
+%%
+%% Class option [strict] turns a missing catalog field into an error instead
+%% of a warning; CI uses it so that a gap cannot reach the published PDFs.
+
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesClass{osucourse}[2026/09/19 v1.0 OSU Math course description sheet]
+
+\newif\ifosu@strict
+\DeclareOption{strict}{\osu@stricttrue}
+\DeclareOption*{\PassOptionsToClass{\CurrentOption}{article}}
+\ProcessOptions\relax
+\LoadClass[12pt]{article}
+
 \usepackage{geometry}
 \geometry{margin=1in}
 \usepackage{fontspec}
 \setmainfont{TeX Gyre Termes}
 \usepackage{hyperref}
+%% Set URLs in the body font rather than typewriter: they are long enough in
+%% these sheets that the wider font costs a line.  Allow them to break at
+%% punctuation too, so a textbook link wraps instead of running off the page.
+\urlstyle{same}
+\def\UrlBreaks{\do\/\do\-\do\_\do\.\do\?\do\&\do\=\do\+\do\\%
+  \do\a\do\b\do\c\do\d\do\e\do\f\do\g\do\h\do\i\do\j\do\k
+  \do\l\do\m\do\n\do\o\do\p\do\q\do\r\do\s\do\t\do\u\do\v
+  \do\w\do\x\do\y\do\z\do\A\do\B\do\C\do\D\do\E\do\F\do\G
+  \do\H\do\I\do\J\do\K\do\L\do\M\do\N\do\O\do\P\do\Q\do\R
+  \do\S\do\T\do\U\do\V\do\W\do\X\do\Y\do\Z\do\0\do\1\do\2
+  \do\3\do\4\do\5\do\6\do\7\do\8\do\9}
 \usepackage{soul}
 \usepackage{xcolor}
 \definecolor{osugray}{RGB}{105,108,108}
 \definecolor{scarlet}{RGB}{196,27,49}
 \usepackage{tikz}
+\usetikzlibrary{arrows.meta}
+%% The sequencing chart labels its boxes in sans; TeX Gyre Heros is
+%% the Helvetica the department's figures have always used.
+\setsansfont{TeX Gyre Heros}
 
 \setlength{\parindent}{0in}
 
@@ -56,15 +107,230 @@
 {}% before-code
 []% after-code (empty in this case)
 
-\renewcommand{\maketitle}{
-\fancyfoot[R]{Math \coursenumber}
-\begin{tikzpicture}[remember picture, overlay, inner sep=0pt, outer sep=0pt]
-    \node [shift={(-1in,-0.5in)},anchor=north east]  at (current page.north east)
-    {\parbox{0.35\textwidth}{\begin{flushright}Mathematics \coursenumber \\ \coursetitle \\ \semesters \\ \credits \end{flushright}}};
-    \end{tikzpicture}\vspace{1ex}}
+%%% ------------------------------------------------------------------
+%%% The catalog data table
+%%% ------------------------------------------------------------------
+%% \CourseData{<number>}{<field>}{<value>} stores one fact.  The number may
+%% contain digits, letters (4182H) and dots (7121.01): \csname builds a name
+%% from characters, so their catcodes never matter.  make-course-data.py
+%% escapes every value, so each one is brace-balanced and free of # and %.
+\long\def\CourseData#1#2#3{%
+  \expandafter\gdef\csname osu@cd@#1@#2\endcsname{#3}}
 
-\begin{document}
+\def\CourseDataDate#1{\gdef\osu@catalogdate{#1}}
+\gdef\osu@catalogdate{unknown}
 
+\IfFileExists{coursedata.tex}
+  {\input{coursedata.tex}}
+  {\ClassWarningNoLine{osucourse}{coursedata.tex not found, so no catalog text
+     is available.  Run \string`make coursedata.tex\string'}}
+
+%%% ------------------------------------------------------------------
+%%% Selecting a course
+%%% ------------------------------------------------------------------
+\let\osu@num\@empty
+
+%% \course{4551} -- required, and deliberately not defaulted to \jobname:
+%% Overleaf compiles with -jobname=output, which would silently blank every
+%% field for exactly the people this class is meant to serve.
+\newcommand{\course}[1]{\edef\osu@num{\zap@space#1 \@empty}}
+
+%%% ------------------------------------------------------------------
+%%% Looking a field up
+%%% ------------------------------------------------------------------
+%% \ifcsname is used rather than \@ifundefined because the latter *defines*
+%% the name it probes as \relax, which would make a later lookup lie.
+\newcommand{\osu@ifhas}[3]{%
+  \ifcsname osu@cd@\osu@num @#1\endcsname
+    \long\def\osu@next{#2}%
+  \else
+    \long\def\osu@next{#3}%
+  \fi
+  \osu@next}
+
+\newcommand{\osu@field}[1]{%
+  \osu@ifhas{#1}{\csname osu@cd@\osu@num @#1\endcsname}{\osu@missing{#1}}}
+
+\newcommand{\osu@missing}[1]{%
+  \ifosu@strict
+    \ClassError{osucourse}{No catalog data for Math \osu@num, field `#1'}%
+      {Either Math \osu@num\space is not in math_courses.json (it may not have
+       been scheduled recently), or that field is empty.  Supply it by hand
+       with \string\SetCourseField{#1}{...} in the preamble.}%
+  \else
+    \ClassWarning{osucourse}{No catalog data for Math \osu@num, field `#1'}%
+    \textcolor{scarlet}{\textbf{[no catalog data: #1]}}%
+  \fi}
+
+%%% ------------------------------------------------------------------
+%%% Overriding a field
+%%% ------------------------------------------------------------------
+%% coursedata.tex is read while the class loads, so anything set in the
+%% document preamble always wins -- no ordering games.
+\gdef\osu@overridden{}
+\newcommand{\SetCourseField}[2]{%
+  \ifx\osu@num\@empty
+    \ClassError{osucourse}{\string\SetCourseField\space used before
+      \string\course}{Put \string\course{NNNN} first.}%
+  \fi
+  \expandafter\gdef\csname osu@cd@\osu@num @#1\endcsname{#2}%
+  \g@addto@macro\osu@overridden{#1 }}
+
+%%% ------------------------------------------------------------------
+%%% The title block (these are the names \maketitle below expects)
+%%% ------------------------------------------------------------------
+\newcommand{\coursenumber}{\osu@num}
+\newcommand{\coursetitle}{\osu@field{title}}
+\newcommand{\semesters}{\osu@field{semesters}}
+\newcommand{\credits}{\osu@field{credits}}
+\newcommand{\lastoffered}{\osu@field{lastoffered}}
+
+%% Width of the metadata block in the top right corner.  It is right-aligned
+%% 1in from the page edge, and the block O wordmark ends about 4in from the
+%% left, so half the text width is as wide as it can go without crowding it.
+\newlength{\osu@titlewidth}
+\setlength{\osu@titlewidth}{0.5\textwidth}
+
+\newsavebox{\osu@titlebox}
+\newsavebox{\osu@refbox}
+\newlength{\osu@titleoverflow}
+
+\renewcommand{\maketitle}{%
+  \fancyfoot[R]{Math \coursenumber}%
+  \sbox\osu@titlebox{\parbox{\osu@titlewidth}{\begin{flushright}%
+    Mathematics \coursenumber \\ \coursetitle \\ \semesters \\ \credits
+  \end{flushright}}}%
+  %% Four lines is what the block was designed around.  Measure that here
+  %% rather than hard-coding it, so it follows the font.
+  \sbox\osu@refbox{\parbox{\osu@titlewidth}{\begin{flushright}%
+    X \\ X \\ X \\ X
+  \end{flushright}}}%
+  \begin{tikzpicture}[remember picture, overlay, inner sep=0pt, outer sep=0pt]
+    \node [shift={(-1in,-0.5in)},anchor=north east] at (current page.north east)
+      {\usebox\osu@titlebox};
+  \end{tikzpicture}%
+  \vspace{1ex}%
+  %% A title long enough to wrap makes the block taller than that, and the
+  %% block is an overlay, so it would hang into the first lines of the body.
+  %% Push the body down by exactly the overflow instead.
+  \setlength{\osu@titleoverflow}{%
+    \dimexpr\ht\osu@titlebox+\dp\osu@titlebox
+           -\ht\osu@refbox-\dp\osu@refbox\relax}%
+  \ifdim\osu@titleoverflow>\z@
+    \vspace{\osu@titleoverflow}%
+  \fi
+}
+
+%%% ------------------------------------------------------------------
+%%% Section headings
+%%% ------------------------------------------------------------------
+%% One knob.  \subsection is the run-in bold-underlined style that 16 of the
+%% original 19 sheets already used; \section would make them block headings.
+\let\osu@heading\subsection
+\let\osu@subheading\subsubsection
+
+%%% ------------------------------------------------------------------
+%%% The two sections that write themselves
+%%% ------------------------------------------------------------------
+%% Use this when the department wants to say more than the catalog does.
+\gdef\osu@addendum{}
+\newcommand{\DescriptionAddendum}[1]{\gdef\osu@addendum{ #1}}
+
+\newcommand{\CatalogDescription}{%
+  \osu@heading{Catalog Description}%
+  \osu@field{description}\osu@addendum\par}
+
+\newcommand{\PrerequisitesAndExclusions}{%
+  \osu@heading{Prerequisite}\osu@field{prereq}\par
+  \osu@ifhas{exclusions}{%
+    %% Same heading level as Prerequisite, so it is underlined to match.
+    \osu@heading{Exclusions}\osu@field{exclusions}\par}{}%
+  }
+
+%%% ------------------------------------------------------------------
+%%% The sections you write
+%%% ------------------------------------------------------------------
+\newcommand{\osu@used}[1]{\expandafter\gdef\csname osu@saw@#1\endcsname{y}}
+
+\newenvironment{Purpose}
+  {\osu@used{Purpose}\osu@heading{Purpose}\ignorespaces}
+  {\par}
+
+\newenvironment{LearningOutcomes}
+  {\osu@heading{Course Learning Outcomes}\ignorespaces}
+  {\par}
+
+\newenvironment{Text}
+  {\osu@used{Text}\osu@heading{Text}\ignorespaces}
+  {\par}
+
+%% The 1000-level sequencing chart, drawn in sequencing-chart.tex.  It is one
+%% shared figure, so the sheets that show it all show the same one.
+\newcommand{\SequencingChart}{%
+  \osu@heading{Sequencing Chart}%
+  \mbox{}\par\nobreak\medskip
+  \noindent\hfil
+  \IfFileExists{sequencing-chart.tex}
+    {\input{sequencing-chart}}
+    {\ClassWarning{osucourse}{sequencing-chart.tex not found}%
+     \textcolor{scarlet}{\textbf{[sequencing chart missing]}}}%
+  \hfil\par\medskip}
+
+%% A second, optional reading list, kept separate from the required text.
+\newenvironment{SupplementalTexts}
+  {\osu@heading{Recommended Supplemental Texts}\ignorespaces}
+  {\par}
+
+%% Calculator and software requirements.
+\newenvironment{Technology}
+  {\osu@heading{Technology}\ignorespaces}
+  {\par}
+
+\newenvironment{Comment}
+  {\osu@heading{Comment}\ignorespaces}
+  {\par}
+
+\newenvironment{FollowupCourses}
+  {\osu@subheading{Follow-up Courses}\ignorespaces}
+  {\par}
+
+%% The usual case: a numbered list of topics.  The optional argument carries a
+%% qualifier, e.g. \begin{TopicsList}[ (Chapters from Judson's book)].
+\newenvironment{TopicsList}[1][]
+  {\osu@used{Topics}\osu@heading{Topics List#1}%
+   \begin{enumerate}}  % loose, matching the original sheets
+  {\end{enumerate}}
+
+%% Inside TopicsOutline, an indented sub-item: a section listed under a
+%% chapter heading.  Each outline line is its own paragraph, which in this
+%% class sets tightly, so a long chapter-by-chapter list stays compact.
+\newcommand{\topicsub}[1]{\hspace*{2em}#1}
+
+%% For topic lists that are not a single flat enumeration -- chapter headings
+%% interleaved with sections, numbering that restarts, and so on.
+\newenvironment{TopicsOutline}[1][]
+  {\osu@used{Topics}\osu@heading{Topics List#1}%
+   %% A run-in heading would swallow the first line of a structured outline,
+   %% so end the heading's line; TopicsList gets this for free from its list.
+   \mbox{}\par\nobreak\ignorespaces}
+  {\par}
+
+\newenvironment{SuggestedSchedule}
+  {\osu@heading{Suggested Schedule}%
+   \begin{itemize}\tightlist}
+  {\end{itemize}}
+\newcommand{\week}[2]{\item \textbf{Week #1.} #2}
+\newcommand{\finalsweek}[1]{\item \textbf{Finals week.} #1}
+
+%%% ------------------------------------------------------------------
+%%% Start of document: the block O, then the title block
+%%% ------------------------------------------------------------------
+\AtBeginDocument{%
+  \ifx\osu@num\@empty
+    \ClassError{osucourse}{No \string\course{...} in this file}%
+      {Add \string\course{4551} (your course number) before
+       \string\begin{document}.}%
+  \fi
 \begin{tikzpicture}[remember picture, overlay, inner sep=0pt, outer sep=0pt]
     \node [shift={(-0.254in,-0.5in)},anchor=north east]  at (current page.north)
         {%
@@ -300,4 +566,19 @@
       (5430.2700,512.1330) -- (5402.9900,507.7580);
   \end{scope}
 \end{tikzpicture}};\end{tikzpicture}
+  \maketitle}
 
+%%% ------------------------------------------------------------------
+%%% End of document: report anything worth a human's attention
+%%% ------------------------------------------------------------------
+\AtEndDocument{%
+  \ifx\osu@overridden\@empty\else
+    \ClassWarningNoLine{osucourse}{Math \osu@num\space overrides catalog
+      fields: \osu@overridden}%
+  \fi
+  \@ifundefined{osu@saw@Text}{\ClassWarningNoLine{osucourse}{Math \osu@num\space
+    has no Text section}}{}%
+  \@ifundefined{osu@saw@Topics}{\ClassWarningNoLine{osucourse}{Math \osu@num\space
+    has no Topics List}}{}}
+
+\endinput

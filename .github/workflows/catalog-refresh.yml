@@ -1,0 +1,65 @@
+# Re-download the university's course data once a week and, if anything the
+# sheets depend on has changed, open a pull request showing exactly what.
+#
+# Nothing here runs on the build path: the committed JSON means a course sheet
+# still builds when these servers are unreachable.
+name: Check OSU data for changes
+
+on:
+  schedule:
+    # Mondays, 06:17 UTC.  GitHub disables scheduled workflows after 60 days
+    # of repository inactivity -- if the PRs stop arriving, that is why.
+    - cron: '17 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: catalog-refresh
+  cancel-in-progress: true
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # Both downloaders use only the standard library, and both refuse to
+      # write an implausibly small result, so an upstream change cannot blank
+      # out good data.
+      - name: Download catalog text and offering history
+        run: make data
+
+      - name: Did anything change?
+        id: changed
+        run: |
+          if git diff --quiet -- math_courses.json math_offerings.json coursedata.tex; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "No changes to the catalog or the schedule archive." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            python3 tools/catalog-diff-report.py > catalog-report.md
+            cat catalog-report.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Open a pull request
+        if: steps.changed.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          branch: catalog-refresh
+          base: main
+          add-paths: |
+            math_courses.json
+            math_offerings.json
+            coursedata.tex
+          commit-message: "Refresh course data from the university"
+          title: "The university's course data has changed"
+          body-path: catalog-report.md
+          labels: catalog-drift
+          delete-branch: true

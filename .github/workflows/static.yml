@@ -1,5 +1,5 @@
-# Simple workflow for deploying static content to GitHub Pages
-name: Build .pdf files from .md files
+# Build the course description PDFs and publish them to GitHub Pages.
+name: Build .pdf files from .tex files
 
 on:
   # Runs on pushes targeting the default branch
@@ -34,8 +34,12 @@ jobs:
       - name: Setup TeXLive
         uses: TeX-Live/setup-texlive-action@v4
         with:
+          # latexmk is a Perl script; perl is already on ubuntu-latest.
+          # hyperref and its oberdiek dependencies used to arrive transitively;
+          # pin them so a TeX Live update cannot quietly drop them.
           packages: >-
             scheme-basic
+            latexmk
             fontspec
             xetex
             pgf
@@ -48,6 +52,20 @@ jobs:
             fancyhdr
             etoolbox
             amsmath
+            hyperref
+            url
+            infwarerr
+            kvoptions
+            ltxcmds
+            pdfescape
+            bitset
+            intcalc
+            etexcmds
+            refcount
+            rerunfilecheck
+            uniquecounter
+            zapfding
+            symbol
       - name: Install fonts
         run: |
           sudo apt-get update
@@ -56,18 +74,17 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Install pyaml library
-        run: pip install pyaml
-      - name: Install pandoc
-        run: sudo apt-get install -y pandoc
-      - name: Run makefile
+      - name: Build the PDFs
         run: make
+      - name: Verify the catalog data is current and complete
+        run: make check
       - name: Setup Pages
         uses: actions/configure-pages@v5
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          # Upload entire repository
+          # Upload entire repository, so the .tex sources, osucourse.cls and
+          # coursedata.tex are published alongside the PDFs.
           path: '.'
       - name: Deploy to GitHub Pages
         id: deployment

@@ -1,0 +1,60 @@
+%% Template for a new course sheet.
+%% Copy this to <course number>.tex, e.g. 4551.tex, and fill it in.
+
+\documentclass{osucourse}
+\course{4551}          % <-- your course number, matching the file name
+
+\begin{document}
+
+%% The catalog description, prerequisites and exclusions are filled in from
+%% the university's data.  Leave these two lines alone.
+\CatalogDescription
+\PrerequisitesAndExclusions
+
+%% Delete any section below that your course does not need.
+
+\begin{Purpose}
+What this course is for, and how it fits into the major.
+\end{Purpose}
+
+\begin{LearningOutcomes}
+By the end of this course, students should be able to:
+\begin{itemize}
+\item do the first thing;
+\item do the second thing.
+\end{itemize}
+\end{LearningOutcomes}
+
+%% Only the 1000-level algebra and precalculus sheets show this; it is one
+%% shared figure, in sequencing-chart.tex.
+%\SequencingChart
+
+\begin{Text}
+\emph{Title of the Book}, 5\textsuperscript{th} edition, by Author,
+published by Publisher, ISBN: 9780000000000
+\end{Text}
+
+\begin{Technology}
+Any calculator or software the course requires.
+\end{Technology}
+
+\begin{TopicsList}
+\item First topic.
+\item Second topic.
+\end{TopicsList}
+
+%% If your topics list is an outline rather than a flat numbered list --
+%% chapter headings, numbering that restarts -- use TopicsOutline instead:
+%%
+%%   \begin{TopicsOutline}
+%%   \textbf{1. Preliminaries}
+%%   1.1 Sets and equivalence relations
+%%   \end{TopicsOutline}
+
+\begin{SuggestedSchedule}
+\week{1}{What happens in week one.}
+\week{2}{What happens in week two. \emph{Midterm I.}}
+\finalsweek{Final examination.}
+\end{SuggestedSchedule}
+
+\end{document}
