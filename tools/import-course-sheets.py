@@ -399,7 +399,12 @@ NUMBERED_RE = re.compile(r"^\s*(\d+)[.)]\s+(.*)$")
 # "1.4  Exponents and the Order of Operations", "App.1 Addition of Fractions",
 # "12.1. Something".  A bare "1." is left alone: that is a flat list's number.
 ENTRY_RE = re.compile(
-    r"^((?:App\.\s*\d+|Appendix\s*[A-Z0-9]+|\d+\.\d+(?:\.\d+)*)\.?)\s+(\S.*)$")
+    r"^((?:App\.\s*\d+"              # App.1
+    r"|Appendix\s*[A-Z0-9]+"           # Appendix A
+    r"|[IVXLCDM]+\.\d+"               # I.1, V.25 -- 1140 and 1141 number
+    r"|[A-Z]\d{1,2}"                   # A2, A4 -- appendix sections in 1181H
+    r"|\d+\.\d+(?:\.\d+)*)\.?)"   # 1.4, 12.1.
+    r"\s+(\S.*)$")
 
 # A heading part way down the list.
 GROUP_RE = re.compile(r"^(CHAPTER|Chapter|PART|Part|UNIT|Unit)\b[\s.:]*[0-9IVX]*\b")
