@@ -445,9 +445,9 @@
     "course": "MATH 3588",
     "credit_hours": "3",
     "description": "Presentations by practicing actuaries on topics drawn from their fields of expertise; oral presentations by students on selected topics in actuarial science.",
-    "exclusions": "Not open to students with credit for 588.",
-    "full_catalog_text": "Presentations by practicing actuaries on topics drawn from their fields of expertise; oral presentations by students on selected topics in actuarial science. Prereq: Completion of second writing course. Jr standing. Open only to actuarial science majors. Not open to students with credit for 588.",
-    "prereqs": "Completion of second writing course. Jr standing. Open only to actuarial science majors.",
+    "exclusions": "",
+    "full_catalog_text": "Presentations by practicing actuaries on topics drawn from their fields of expertise; oral presentations by students on selected topics in actuarial science.",
+    "prereqs": "",
     "title": "Practicum in Actuarial Science"
   },
   {
@@ -803,6 +803,17 @@
     "title": "Introduction to the Finite Element Method"
   },
   {
+    "career": "Graduate",
+    "catalog_number": "5194",
+    "course": "MATH 5194",
+    "credit_hours": "1-9",
+    "description": "Designed to give groups of advanced undergraduate and beginning graduate students an opportunity to pursue special studies not otherwise offered.",
+    "exclusions": "",
+    "full_catalog_text": "Designed to give groups of advanced undergraduate and beginning graduate students an opportunity to pursue special studies not otherwise offered. Prereq: Permission of department. Repeatable.",
+    "prereqs": "Permission of department. Repeatable.",
+    "title": "Group Studies in Mathematics"
+  },
+  {
     "career": "Undergraduate",
     "catalog_number": "5201",
     "course": "MATH 5201",
@@ -935,7 +946,7 @@
     "title": "Life Contingencies I"
   },
   {
-    "career": "Undergraduate",
+    "career": "Graduate",
     "catalog_number": "5631",
     "course": "MATH 5631",
     "credit_hours": "3",
